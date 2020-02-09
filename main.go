@@ -48,7 +48,7 @@ func MainPage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(contacts)
 }
 
-// Добавление нового контакта
+// Создание нового контакта или добавление номера к существующему контакту
 func Create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -56,6 +56,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	err = json.NewDecoder(r.Body).Decode(&currentContact)
 	errorMsg(err, "Получение JSON - функция Create")
+
+	/***
+		TODO:
+			Проверка: существует ли запись с таким именем?
+			Если да, то добавить только новый номер к ней
+	***/
 
 	// Добавление нового контакта
 	res, err := DB.Exec("INSERT INTO `contacts` (name) VALUES(?);", currentContact.Name)
@@ -88,25 +94,36 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&updateContact)
 	errorMsg(err, "Получение JSON - функция Update")
 
-	_, err = DB.Exec("UPDATE `phone_number` SET `phone_number`.`number` = ? WHERE `phone_number`.`id` = ?;",
-		updateContact.PhoneNumber,
-		strconv.Itoa(idPhoneNumber))
-	errorMsg(err, "Отправка запроса на обновление контакта - функция Update")
-
-	_, err = DB.Exec("UPDATE `contacts` SET `contacts`.`name` = ? WHERE `contacts`.`id` = ?;",
-		updateContact.Name,
-		strconv.Itoa(idContact))
-	errorMsg(err, "Отправка запроса на обновление номера - функция Update")
+	if idContact != 0 {
+		_, err = DB.Exec("UPDATE `contacts` SET `contacts`.`name` = ? WHERE `contacts`.`id` = ?;",
+			updateContact.Name,
+			strconv.Itoa(idContact))
+		errorMsg(err, "Отправка запроса на обновление контакта - функция Update")
+	}
+	if idPhoneNumber != 0 {
+		_, err = DB.Exec("UPDATE `phone_number` SET `phone_number`.`number` = ? WHERE `phone_number`.`id` = ?;",
+			updateContact.PhoneNumber,
+			strconv.Itoa(idPhoneNumber))
+		errorMsg(err, "Отправка запроса на обновление номера телефона - функция Update")
+	}
 }
 
 // Обработчик удаления контакта
 func Delete(w http.ResponseWriter, r *http.Request) {
 	// Берем id элемента из url
 	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
+	idContact, err := strconv.Atoi(vars["idContact"])
+	errorMsg(err, "Получение ID контакта - функция Update")
+	idPhoneNumber, err := strconv.Atoi(vars["idPhoneNumber"])
+	errorMsg(err, "Получение ID номера телефона - функция Update")
 
-	_, err = DB.Exec("DELETE FROM users where id=?", id)
-	errorMsg(err, "Удаление контакта - функция Delete")
+	if idContact != 0 { // Если выбран индекс контакта - удалить контакт полностью
+		_, err = DB.Exec("DELETE FROM `contacts` where id = ?", idContact)
+		errorMsg(err, "Удаление контакта полностью - функция Delete")
+	} else if idPhoneNumber != 0 { // Если выбран только индекс телефона - удалить номер тел.
+		_, err = DB.Exec("DELETE FROM `phone_number` where id = ?", idPhoneNumber)
+		errorMsg(err, "Удаление номера телефона из контакта - функция Delete")
+	}
 }
 
 // Обработчик поиска контакта по имени или по номеру телефона
