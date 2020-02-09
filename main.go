@@ -13,9 +13,10 @@ import (
 
 // Структура для контакта
 type Contact struct {
-	Id          int    `json:"Id,omitempty"`
-	Name        string `json:"Name"`
-	PhoneNumber string `json:"PhoneNumber"`
+	IdContact     int    `json:"IdContact,omitempty"`
+	IdPhoneNumber int    `json:"IdPhoneNumber,omitempty"`
+	Name          string `json:"Name"`
+	PhoneNumber   string `json:"PhoneNumber"`
 }
 
 // Переменная для подключения к БД
@@ -28,7 +29,7 @@ var err error
 func MainPage(w http.ResponseWriter, r *http.Request) {
 	contacts := []*Contact{}
 	// Создание запроса для выборки всех контактов
-	query := "SELECT `contacts`.`id`, `contacts`.`name`, `phone_number`.`number` "
+	query := "SELECT `contacts`.`id`, `phone_number`.`id`, `contacts`.`name`, `phone_number`.`number` "
 	query += "FROM `contacts`, `phone_number` "
 	query += "WHERE `contacts`.`id` = `phone_number`.`contactsID`;"
 
@@ -37,7 +38,7 @@ func MainPage(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		currentContact := &Contact{}
-		err = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+		err = rows.Scan(&currentContact.IdContact, &currentContact.IdPhoneNumber, &currentContact.Name, &currentContact.PhoneNumber)
 		errorMsg(err, "Сканирование строк ответа - функция MainPage")
 		contacts = append(contacts, currentContact)
 	}
@@ -57,7 +58,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	errorMsg(err, "Получение JSON - функция Create")
 
 	// Добавление нового контакта
-	res, err := DB.Exec("INSERT INTO `contacts` (name) VALUES(\"" + currentContact.Name + "\");")
+	res, err := DB.Exec("INSERT INTO `contacts` (name) VALUES(?);", currentContact.Name)
 	errorMsg(err, "Добавление нового контакта (имя контакта) - функция Create")
 
 	// Получение id нового контакта
@@ -65,16 +66,48 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	errorMsg(err, "Получение индекса последнего контакта - функция Create")
 
 	// Добавление номера телефона нового контакта
-	query := "INSERT INTO `phone_number` (contactsID, number) VALUES(\"" +
-		strconv.Itoa(int(id)) + "\", \"" +
-		currentContact.PhoneNumber + "\");"
-	_, err = DB.Exec(query)
+	_, err = DB.Exec("INSERT INTO `phone_number` (contactsID, number) VALUES(?, ?);",
+		strconv.Itoa(int(id)), currentContact.PhoneNumber)
+
 	errorMsg(err, "Добавление нового контакта (ID и номер телефона) - функция Create")
 }
 
-func Update(w http.ResponseWriter, r *http.Request) {}
+// Обработчик редактирования контакта
+func Update(w http.ResponseWriter, r *http.Request) {
+	// Берем id элемента из url
+	vars := mux.Vars(r)
+	idContact, err := strconv.Atoi(vars["idContact"])
+	errorMsg(err, "Получение ID контакта - функция Update")
+	idPhoneNumber, err := strconv.Atoi(vars["idPhoneNumber"])
+	errorMsg(err, "Получение ID номера телефона - функция Update")
 
-func Delete(w http.ResponseWriter, r *http.Request) {}
+	w.Header().Set("Content-Type", "application/json")
+
+	updateContact := &Contact{}
+
+	err = json.NewDecoder(r.Body).Decode(&updateContact)
+	errorMsg(err, "Получение JSON - функция Update")
+
+	_, err = DB.Exec("UPDATE `phone_number` SET `phone_number`.`number` = ? WHERE `phone_number`.`id` = ?;",
+		updateContact.PhoneNumber,
+		strconv.Itoa(idPhoneNumber))
+	errorMsg(err, "Отправка запроса на обновление контакта - функция Update")
+
+	_, err = DB.Exec("UPDATE `contacts` SET `contacts`.`name` = ? WHERE `contacts`.`id` = ?;",
+		updateContact.Name,
+		strconv.Itoa(idContact))
+	errorMsg(err, "Отправка запроса на обновление номера - функция Update")
+}
+
+// Обработчик удаления контакта
+func Delete(w http.ResponseWriter, r *http.Request) {
+	// Берем id элемента из url
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+
+	_, err = DB.Exec("DELETE FROM users where id=?", id)
+	errorMsg(err, "Удаление контакта - функция Delete")
+}
 
 // Обработчик поиска контакта по имени или по номеру телефона
 func Find(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +121,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 
 	if findContact.Name != "" {
 		// Создание запроса для поиска по имени
-		query := "SELECT `contacts`.`id`, `contacts`.`name`, `phone_number`.`number` "
+		query := "SELECT `contacts`.`id`, `phone_number`.`id`, `contacts`.`name`, `phone_number`.`number` "
 		query += "FROM `contacts`, `phone_number` "
 		query += "WHERE `contacts`.`name` = \"" + findContact.Name + "\" "
 		query += "AND `contacts`.`id` = `phone_number`.`contactsID`;"
@@ -98,7 +131,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			currentContact := &Contact{}
-			err = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+			err = rows.Scan(&currentContact.IdContact, &currentContact.IdPhoneNumber, &currentContact.Name, &currentContact.PhoneNumber)
 			errorMsg(err, "Сканирование строк ответа - функция Find")
 			contacts = append(contacts, currentContact)
 		}
@@ -107,7 +140,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(contacts)
 	} else if findContact.PhoneNumber != "" {
 		// Создание запроса для поиска по номеру телефона
-		query := "SELECT `contacts`.`id`, `contacts`.`name`, `phone_number`.`number` "
+		query := "SELECT `contacts`.`id`, `phone_number`.`id`, `contacts`.`name`, `phone_number`.`number` "
 		query += "FROM `contacts`, `phone_number` "
 		query += "WHERE `phone_number`.`number` = \"" + findContact.PhoneNumber + "\" "
 		query += "AND `contacts`.`id` = `phone_number`.`contactsID`;"
@@ -117,7 +150,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			currentContact := &Contact{}
-			err = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+			err = rows.Scan(&currentContact.IdContact, &currentContact.IdPhoneNumber, &currentContact.Name, &currentContact.PhoneNumber)
 			errorMsg(err, "Сканирование строк ответа - функция Find")
 			contacts = append(contacts, currentContact)
 		}
@@ -135,8 +168,8 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/contacts/new", Create).Methods("POST")
-	r.HandleFunc("/contacts/{id}", Update).Methods("POST")
-	r.HandleFunc("/contacts/{id}", Delete).Methods("DELETE")
+	r.HandleFunc("/contacts/{idContact}/{idPhoneNumber}", Update).Methods("POST")
+	r.HandleFunc("/contacts/{idContact}/{idPhoneNumber}", Delete).Methods("DELETE")
 	r.HandleFunc("/contacts/find", Find).Methods("GET")
 	r.HandleFunc("contacts/", MainPage).Methods("GET")
 	r.HandleFunc("/", MainPage).Methods("GET")
