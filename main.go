@@ -25,20 +25,13 @@ type Handler struct {
 // Обработчик главной страницы - вывод всех контактов и телефонов
 func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 	contacts := []*Contact{}
-	rows, _ := h.DB.Query("SELECT `contacts`.`id`, `contacts`.`name`, `phone_number`.`number` FROM `contacts`, `phone_number` WHERE `contacts`.`id` = `phone_number`.`contactsID`;")
-
-	//TODO: Обработка ошибки err (_)
-	//...
-	//...
+	rows, err := h.DB.Query("SELECT `contacts`.`id`, `contacts`.`name`, `phone_number`.`number` FROM `contacts`, `phone_number` WHERE `contacts`.`id` = `phone_number`.`contactsID`;")
+	errorMsg(err, "Отправка запроса выбора данных из таблиц - функция MainPage")
 
 	for rows.Next() {
 		currentContact := &Contact{}
-		_ = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
-
-		//TODO: Обработка ошибки err
-		//...
-		//...
-
+		err = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+		errorMsg(err, "Сканирование строк ответа - функция MainPage")
 		contacts = append(contacts, currentContact)
 	}
 	rows.Close()
