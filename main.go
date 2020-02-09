@@ -1,24 +1,31 @@
 package main
 
 import (
-	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	"github.com/jmoiron/sqlx"
 )
 
+// Структура для контакта
 type Contact struct {
 	Id          int
 	Name        string
-	PhoneNumber string
+	PhoneNumber []string
 }
 
-var DB *sql.DB
+// Структура для использования подключения к БД в обработчиках
+type Handler struct {
+	DB *sqlx.DB
+}
 
-func MainPage(w http.ResponseWriter, r *http.Request) {
+// Обработчик главной страницы - вывод всех контактов и телефонов
+func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 	contacts := []*Contact{}
-	rows, _ := DB.Query("SELECT id, name, phoneNumber FROM contacts")
+	rows, _ := h.DB.Query("SELECT id, name FROM contacts")
 
 	//TODO: Обработка ошибки err (_)
 	//...
@@ -26,7 +33,7 @@ func MainPage(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		currentContact := &Contact{}
-		_ = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+		_ = rows.Scan(&currentContact.Id, &currentContact.Name)
 
 		//TODO: Обработка ошибки err
 		//...
@@ -35,36 +42,33 @@ func MainPage(w http.ResponseWriter, r *http.Request) {
 		contacts = append(contacts, currentContact)
 	}
 	rows.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(contacts)
 }
 
-func Add(w http.ResponseWriter, r *http.Request) {}
-
-func Edit(w http.ResponseWriter, r *http.Request) {}
+func Create(w http.ResponseWriter, r *http.Request) {}
 
 func Update(w http.ResponseWriter, r *http.Request) {}
 
 func Delete(w http.ResponseWriter, r *http.Request) {}
 
 func main() {
-	dsn := "root@tcp(localhost)" // Логин-пароль к БД
-	dsn += "&charset=utf8"
-	dsn += "&interpolateParams=true"
-
-	db, err := sql.Open("mysql", dsn)
-	db.SetMaxOpenConns(10)
-
-	err = db.Ping()
+	ConnectionStringDB := "root:1234567890@tcp(localhost:3306)/phone_book"
+	conn, err := sqlx.Connect("mysql", ConnectionStringDB)
 	if err != nil {
 		panic(err)
 	}
+
+	handlers := &Handler{DB: conn}
+
 	r := mux.NewRouter()
 
-	r.HandleFunc("/contact/new", Add).Methods("POST")
-	r.HandleFunc("/contact/{id}", Edit).Methods("GET")
+	r.HandleFunc("/contact/new", Create).Methods("POST")
 	r.HandleFunc("/contact/{id}", Update).Methods("POST")
 	r.HandleFunc("/contact/{id}", Delete).Methods("DELETE")
-	r.HandleFunc("/", MainPage).Methods("GET")
+	r.HandleFunc("/", handlers.MainPage).Methods("GET")
 
-	log.Println("Сервер запущен на порту :80")
-	log.Fatal(http.ListenAndServe(":80", r))
+	log.Println("Сервер запущен на порту :88")
+	log.Fatal(http.ListenAndServe(":88", r))
 }
