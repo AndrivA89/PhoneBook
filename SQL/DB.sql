@@ -1,9 +1,4 @@
 /*
-root
-1234567890
-*/
-
-/*
 
 CREATE DATABASE phone_book;
 USE phone_book;

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
@@ -12,9 +13,9 @@ import (
 
 // Структура для контакта
 type Contact struct {
-	Id          int
-	Name        string
-	PhoneNumber string
+	Id          int    `json:"Id,omitempty"`
+	Name        string `json:"Name"`
+	PhoneNumber string `json:"PhoneNumber"`
 }
 
 // Переменная для подключения к БД
@@ -51,19 +52,26 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	currentContact := &Contact{}
 	err = json.NewDecoder(r.Body).Decode(&currentContact)
+	currentContact.Id = 0
 	errorMsg(err, "Получение JSON - функция Create")
+
+	// Добавление нового контакта
+	res, err := DB.Exec("INSERT INTO `contacts` (name) VALUES(\"" + currentContact.Name + "\");")
+	errorMsg(err, "Добавление нового контакта - функция Create")
+	// Получение id нового контакта
+	id, err := res.LastInsertId()
+	errorMsg(err, "Получение индекса последнего контакта - функция Create")
+	// Добавление номера телефона нового контакта
+	query := "INSERT INTO `phone_number` (contactsID, number) VALUES(\"" +
+		strconv.Itoa(int(id)) + "\", \"" +
+		currentContact.PhoneNumber + "\");"
+	_, err = DB.Exec(query)
+	errorMsg(err, "Добавление нового контакта - функция Create")
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {}
 
 func Delete(w http.ResponseWriter, r *http.Request) {}
-
-// errorMsg - Печать ошибки
-func errorMsg(err error, comment string) {
-	if err != nil {
-		log.Printf("Ошибка %v! Текст ошибки: %v", comment, err)
-	}
-}
 
 func main() {
 	ConnectionStringDB := "root:1234567890@tcp(localhost:3306)/phone_book"
@@ -79,4 +87,11 @@ func main() {
 
 	log.Println("Сервер запущен на порту :88")
 	log.Fatal(http.ListenAndServe(":88", r))
+}
+
+// errorMsg - Печать ошибки
+func errorMsg(err error, comment string) {
+	if err != nil {
+		log.Printf("Ошибка!!! %v!\n***Текст ошибки:***\n%v", comment, err)
+	}
 }
