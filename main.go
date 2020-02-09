@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"html/template"
 	"log"
 	"net/http"
 
@@ -15,22 +14,19 @@ type Contact struct {
 	PhoneNumber string
 }
 
-type Handler struct {
-	DB   *sql.DB
-	Tmpl *template.Template
-}
+var DB *sql.DB
 
-func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
+func MainPage(w http.ResponseWriter, r *http.Request) {
 	contacts := []*Contact{}
-	rows, err := h.DB.Query("SELECT id, name, phoneNumber FROM contacts")
+	rows, _ := DB.Query("SELECT id, name, phoneNumber FROM contacts")
 
-	//TODO: Обработка ошибки err
+	//TODO: Обработка ошибки err (_)
 	//...
 	//...
 
 	for rows.Next() {
 		currentContact := &Contact{}
-		err = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
+		_ = rows.Scan(&currentContact.Id, &currentContact.Name, &currentContact.PhoneNumber)
 
 		//TODO: Обработка ошибки err
 		//...
@@ -39,25 +35,15 @@ func (h *Handler) MainPage(w http.ResponseWriter, r *http.Request) {
 		contacts = append(contacts, currentContact)
 	}
 	rows.Close()
-
-	err = h.Tmpl.ExecuteTemplate(w, "index.html", struct {
-		Contacts []*Contact
-	}{
-		Contacts: contacts,
-	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 }
 
-func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {}
+func Add(w http.ResponseWriter, r *http.Request) {}
 
-func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {}
+func Edit(w http.ResponseWriter, r *http.Request) {}
 
-func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {}
+func Update(w http.ResponseWriter, r *http.Request) {}
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {}
+func Delete(w http.ResponseWriter, r *http.Request) {}
 
 func main() {
 	dsn := "root@tcp(localhost)" // Логин-пароль к БД
@@ -71,19 +57,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	handlers := &Handler{
-		DB:   db,
-		Tmpl: template.Must(template.ParseGlob("../templates/*")),
-	}
-
 	r := mux.NewRouter()
 
-	r.HandleFunc("/contact/new", handlers.Add).Methods("POST")
-	r.HandleFunc("/contact/{id}", handlers.Edit).Methods("GET")
-	r.HandleFunc("/contact/{id}", handlers.Update).Methods("POST")
-	r.HandleFunc("/contact/{id}", handlers.Delete).Methods("DELETE")
-	r.HandleFunc("/", handlers.MainPage).Methods("GET")
+	r.HandleFunc("/contact/new", Add).Methods("POST")
+	r.HandleFunc("/contact/{id}", Edit).Methods("GET")
+	r.HandleFunc("/contact/{id}", Update).Methods("POST")
+	r.HandleFunc("/contact/{id}", Delete).Methods("DELETE")
+	r.HandleFunc("/", MainPage).Methods("GET")
 
 	log.Println("Сервер запущен на порту :80")
 	log.Fatal(http.ListenAndServe(":80", r))
