@@ -133,6 +133,8 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 	if idContact != 0 { // Если выбран индекс контакта - удалить контакт полностью
 		_, err = DB.Exec("DELETE FROM `contacts` where id = ?", idContact)
 		ErrorMsg(err, "Удаление контакта полностью - функция Delete")
+		_, err = DB.Exec("DELETE FROM `phone_number` where `phone_number`.`contactsID` = ?", idContact)
+		ErrorMsg(err, "Удаление контакта полностью (телефон) - функция Delete")
 	} else if idPhoneNumber != 0 { // Если выбран только индекс телефона - удалить номер тел.
 		_, err = DB.Exec("DELETE FROM `phone_number` where id = ?", idPhoneNumber)
 		ErrorMsg(err, "Удаление номера телефона из контакта - функция Delete")
