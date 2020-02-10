@@ -17,6 +17,7 @@ var testName = "Тестовое имя"         // Для добавления 
 var testNumber = "+98887776655"       // Для добавления нового Контакта
 var testSecondNumber = "+10001110202" // Для добавления второго номера Контакту
 var testContactID = 0                 // При отдельном выполнении тестов установить значение
+var testNumberID = 0                  // При отдельном выполнении тестов установить значение
 
 func TestCreateContact(t *testing.T) {
 	w := httptest.NewRecorder()
@@ -64,7 +65,30 @@ func TestAddNumber(t *testing.T) {
 
 	AddNumber(w, r)
 
-	//TODO: Проверить, что номер добавился и теперь у контакта два номера
+	query := "SELECT `phone_number`.`id`, `phone_number`.`contactsID`, `phone_number`.`number` "
+	query += "FROM `phone_number` "
+	query += "WHERE `phone_number`.`contactsID` = \"" + strconv.Itoa(testContactID) + "\";"
+
+	rows, err := DB.Query(query)
+	if err != nil {
+		t.Errorf("Ошибка при проверке на добавление нового телефонного номера")
+	}
+
+	contacts := []*Contact{}
+
+	for rows.Next() {
+		currentContact := &Contact{}
+		err = rows.Scan(&currentContact.IdPhoneNumber, &currentContact.IdContact, &currentContact.PhoneNumber)
+		if err != nil {
+			t.Errorf("Ошибка при проверке на добавление нового телефонного номера")
+		}
+		contacts = append(contacts, currentContact)
+	}
+	rows.Close()
+
+	if contacts[1].PhoneNumber != testSecondNumber {
+		t.Errorf("Ошибка добавления нового телефонного номера")
+	}
 }
 
 func TestDeleteContact(t *testing.T) {
@@ -75,13 +99,40 @@ func TestDeleteContact(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	r := httptest.NewRequest(http.MethodDelete, "/contacts/", buffer)
 
-	vars := map[string]string{
-		"idContact":     "8",
-		"idPhoneNumber": "0",
-	}
+	vars := map[string]string{}
+	vars["idContact"] = strconv.Itoa(testContactID)
+	vars["idPhoneNumber"] = strconv.Itoa(testNumberID)
 	r = mux.SetURLVars(r, vars)
 
 	Delete(w, r)
+
+	// Создание запроса для выборки всех контактов
+	query := "SELECT `contacts`.`id`, `phone_number`.`id`, `contacts`.`name`, `phone_number`.`number` "
+	query += "FROM `contacts`, `phone_number` "
+	query += "WHERE `contacts`.`id` = `phone_number`.`contactsID`;"
+
+	contacts := []*Contact{}
+
+	rows, err := DB.Query(query)
+	if err != nil {
+		t.Errorf("Ошибка при проверке на удаление контакта")
+	}
+
+	for rows.Next() {
+		currentContact := &Contact{}
+		err = rows.Scan(&currentContact.IdContact, &currentContact.IdPhoneNumber, &currentContact.Name, &currentContact.PhoneNumber)
+		if err != nil {
+			t.Errorf("Ошибка при проверке на удаление контакта")
+		}
+		contacts = append(contacts, currentContact)
+	}
+	rows.Close()
+
+	for i := 0; i < len(contacts); i++ {
+		if contacts[i].IdContact == testContactID {
+			t.Errorf("Ошибка при проверке на удаление контакта")
+		}
+	}
 
 	DB.Close()
 }
